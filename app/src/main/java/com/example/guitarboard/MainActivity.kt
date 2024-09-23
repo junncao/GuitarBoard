@@ -29,7 +29,16 @@ val allNotes = listOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "Bb"
 // Chord types
 val chordTypes = listOf("Major", "Minor", "Major 7", "Minor 7", "Dominant 7", "Dim7", "Minor7b5")
 
-val modeTypes = listOf(ViewMode.FRETBOARD, ViewMode.FILL_CHORD, ViewMode.FIND_NOTES)
+val modeTypes = listOf(ViewMode.FRETBOARD, ViewMode.FILL_CHORD, ViewMode.FIND_NOTES, ViewMode.FIND_SCALE)
+
+
+val scaleMap = mapOf(
+    "Major" to listOf(0, 2, 4, 5, 7, 9, 11),
+    "Minor" to listOf(0, 2, 3, 5, 7, 8, 10),
+    "MinorHarmonic" to listOf(0, 2, 3, 5, 7, 8, 11),
+    "MajorBlues" to listOf(0, 2, 3, 4, 7, 9),
+    "MinorBlues" to listOf(0, 3, 5, 6, 7, 10),
+)
 
 // Chord intervals (semitones from root)
 val chordMap = mapOf(
@@ -40,7 +49,8 @@ val chordMap = mapOf(
     "Dominant 7" to listOf(0, 4, 7, 10),
     "Dim7" to listOf(0, 3, 6, 9),
     "Minor7b5" to listOf(0, 3, 6, 10)
-)
+) + scaleMap
+
 
 
 val internalCompleteMap = mapOf(
@@ -96,6 +106,13 @@ fun calculateInternalNotes(root: String, internalType: String): List<String> {
     return internalCompleteMap[internalType]?.let { interval ->
         allNotes[(rootIndex + interval) % 12]
     }?.let { listOf(it) } ?: emptyList()
+}
+
+fun calculateScaleNotes(root: String, scaleType: String): List<String> {
+    val rootIndex = allNotes.indexOf(root)
+    return scaleMap[scaleType]?.map { interval ->
+        allNotes[(rootIndex + interval) % 12]
+    } ?: emptyList()
 }
 
 fun findNotesOnFretboard(chordNotes: List<String>): List<Note> {

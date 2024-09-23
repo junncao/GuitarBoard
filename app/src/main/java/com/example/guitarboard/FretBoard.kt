@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -23,6 +25,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.navigation.compose.composable
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -45,12 +48,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.rememberNavController
 import com.example.guitarboard.ui.theme.PurpleGrey80
 import kotlin.math.roundToInt
 
 /**
- * Created by caojun.24 on 8/12/24
- * @author caojun.24@bytedance.com
+ * Created on 8/12/24
  */
 @Composable
 fun GuitarFretboard(
@@ -165,14 +170,54 @@ fun GuitarFretboard(
 enum class ViewMode(val label: String = "") {
     FRETBOARD("FretBoard"),
     FILL_CHORD("FillChord"),
-    FIND_NOTES("FindNotes")
+    FIND_NOTES("FindNotes"),
+    FIND_SCALE("FindScale")
 }
+
 
 @Composable
 fun MainScreen() {
+    val navController = rememberNavController()
+    NavHost(navController = navController, startDestination = "MainBoard") {
+        composable("home") { HomeScreen(navController) }
+        composable("MainBoard") { MainBoard(navController) }
+        composable("FretGame") { FretGame(navController) }
+    }
+}
+@Composable
+fun FretGame(navController: NavHostController){
+
+}
+
+@Composable
+fun HomeScreen(navController: NavHostController) {
+    val pages = listOf("MainBoard", "FretGame")
+    LazyColumn(modifier = Modifier.fillMaxSize()) {
+        items(pages) { page ->
+            Text(
+                text = page,
+                modifier = Modifier
+                    .clickable {
+                        when (page) {
+                            "MainBoard" -> navController.navigate("MainBoard")
+                            "FretGame" -> navController.navigate("FretGame")
+                            // Add more navigation logic as needed
+                        }
+                    }
+                    .padding(all = 16.dp)
+                    .fillMaxWidth(),
+                fontSize = 20.sp,
+            )
+        }
+    }
+}
+
+@Composable
+fun MainBoard(navController: NavHostController) {
     var selectedRoot by remember { mutableStateOf(allNotes[0]) }
-    var selectedChordType by remember { mutableStateOf(chordTypes[0]) }
+    var selectedChordType by remember { mutableStateOf(chordMap.keys.first()) }
     var selectedMode by remember { mutableStateOf(modeTypes[0]) }
+
 
     val expandedMode = remember {
         mutableStateOf(false)
@@ -183,13 +228,20 @@ fun MainScreen() {
     val expandedChordType = remember {
         mutableStateOf(false)
     }
+    val expandedScaleType = remember {
+        mutableStateOf(false)
+    }
 
-    var giveNote by remember { mutableStateOf(internalCompleteMap.keys.first()) }
+    val giveNote by remember { mutableStateOf(internalCompleteMap.keys.first()) }
     var findNote by remember { mutableStateOf(internalCompleteMap.keys.filter { it != "1" }.random()) }
     val needFindNotes by remember {
         derivedStateOf {
             findNotesOnFretboard(calculateInternalNotes(selectedRoot, findNote))
         }
+    }
+
+    var selectedScaleType by remember {
+        mutableStateOf(scaleMap.keys.first())
     }
     var onNoteClick: (Note) -> Unit = {}
 
@@ -229,7 +281,7 @@ fun MainScreen() {
             )
 
             CustomDropdownMenu(
-                label = "RootNote",
+                label = "Root",
                 selectedValue = selectedRoot,
                 expand = expandedRoot,
                 onExpandedChange = { expandedRoot.value = !expandedRoot.value },
@@ -249,26 +301,46 @@ fun MainScreen() {
                     .padding(end = 4.dp)
             )
 
-            if (selectedMode != ViewMode.FIND_NOTES) {
+            if (selectedMode == ViewMode.FIND_SCALE){
                 CustomDropdownMenu(
-                    label = "Type",
-                    selectedValue = selectedChordType,
-                    expand = expandedChordType,
-                    onExpandedChange = { expandedChordType.value = !expandedChordType.value },
+                    label = "ScaleType",
+                    selectedValue = selectedScaleType,
+                    expand = expandedScaleType,
+                    onExpandedChange = { expandedScaleType.value = !expandedScaleType.value },
                     dropdownContent = {
-                        chordTypes.forEach { type ->
+                        scaleMap.keys.forEach { k ->
                             DropdownMenuItem(
-                                text = { Text(type) },
+                                text = { Text(k) },
                                 onClick = {
-                                    expandedChordType.value = false
-                                    selectedChordType = type
+                                    expandedScaleType.value = false
+                                    selectedScaleType = k
                                 }
                             )
                         }
                     },
                     modifier = Modifier
                         .width(140.dp)
-                        .padding(end = 4.dp)
+                )
+            } else if (selectedMode != ViewMode.FIND_NOTES) {
+                CustomDropdownMenu(
+                    label = "Type",
+                    selectedValue = selectedChordType,
+                    expand = expandedChordType,
+                    onExpandedChange = { expandedChordType.value = !expandedChordType.value },
+                    dropdownContent = {
+                        chordMap.forEach { (k, v) ->
+                            val description = "$k (${v.mapNotNull { reversedInternalMap[it] }.joinToString(separator = " ")})"
+                            DropdownMenuItem(
+                                text = { Text(description) },
+                                onClick = {
+                                    expandedChordType.value = false
+                                    selectedChordType = k
+                                }
+                            )
+                        }
+                    },
+                    modifier = Modifier
+                        .width(140.dp)
                 )
             } else {
                 Text(
@@ -319,19 +391,48 @@ fun MainScreen() {
             }
 
             ViewMode.FIND_NOTES -> {
-                val initialNotes = findNotesOnFretboard(
+                val initialNote = findNotesOnFretboard(
+                    // give the root note
                     calculateInternalNotes(selectedRoot, giveNote)
-                )
+                ).random()
 
                 foundNotes.clear()
-                foundNotes.addAll(initialNotes)
-                val initialSize = initialNotes.size
+                foundNotes.add(initialNote)
+                val initialSize = 1
 
                 val currentNeedFindNotes by rememberUpdatedState(needFindNotes)
                 onNoteClick = { note ->
                     if (note in currentNeedFindNotes && note !in foundNotes) {
                         foundNotes.add(note)
                         if (foundNotes.size == initialSize + currentNeedFindNotes.size) {
+                            Toast.makeText(
+                                context,
+                                "You found all chord notes!",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }
+                GuitarFretboard(
+                    selectedRoot,
+                    selectedChordType,
+                    foundNotes,
+                    onNoteClick = onNoteClick
+                )
+            }
+
+            ViewMode.FIND_SCALE ->{
+                val scaleNotes = findNotesOnFretboard(
+                    // give the root note
+                    calculateScaleNotes(selectedRoot, selectedScaleType)
+                )
+                foundNotes.clear()
+
+                val currentNeedFindNotes by rememberUpdatedState(scaleNotes)
+                onNoteClick = { note ->
+                    if (note in currentNeedFindNotes && note !in foundNotes) {
+                        foundNotes.add(note)
+                        if (foundNotes.size == currentNeedFindNotes.size) {
                             Toast.makeText(
                                 context,
                                 "You found all chord notes!",
